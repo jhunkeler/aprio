@@ -29,6 +29,7 @@ except:
 CPU_THRESHOLD=50.0
 CPUTIME_THRESHOLD=Elapsed.SECOND * 1
 POLL=3
+TEST_MODE=False
 VERBOSE=False
 QUITE=False
 
@@ -37,10 +38,21 @@ def renice(proc, nice_value=0):
 	try:
 		pid = proc.pid
 		nice_previous = proc.get_nice()
+		
+		if nice_previous < 0:
+			return
+
 		if nice_value <= nice_previous:
 			return
-		proc.set_nice(nice_value)
-		nice_current = proc.get_nice()
+
+		if not TEST_MODE:
+			proc.set_nice(nice_value)
+
+		if not TEST_MODE:
+			nice_current = proc.get_nice()
+		else:
+			nice_current = nice_value
+
 		print("PID: {0}: nice({1}) -> nice({2})".format(pid, nice_previous, nice_current))
 	except psutil.AccessDenied as e:
 		print("PID: {0}: {1}: Permission denied setting nice to {2}".format(pid, proc.username(), nice_value))
@@ -94,7 +106,7 @@ def get_bad_processes(cpu_threshold=CPU_THRESHOLD, cputime_threshold=CPUTIME_THR
 	if kwargs.has_key('user'):
 		user = kwargs['user']
 
-	for proc in psutil.get_process_list():
+	for proc in psutil.process_iter():
 		try:
 			pid = proc.pid
 			username = proc.username()
@@ -106,6 +118,7 @@ def get_bad_processes(cpu_threshold=CPU_THRESHOLD, cputime_threshold=CPUTIME_THR
 
 			if uid == 0 or euid == 0:
 				continue
+
 
 			cpu = proc.get_cpu_percent(interval=0.05)
 			if cpu > cpu_threshold:
@@ -130,6 +143,7 @@ if __name__ == "__main__":
 	parser.add_argument('--cputime-threshold', '-t', default=CPUTIME_THRESHOLD, type=float, help='Trigger after n%%')
 	parser.add_argument('--load-threshold', '-l', default=LOAD_THRESHOLD, type=float, help='Trigger after n load average')
 	parser.add_argument('--poll', '-p', default=POLL, type=float, help='Wait n seconds between polling processes')
+	parser.add_argument('--test', '-T', action='store_true', default=False, help='Do not modify processes; report only.')
 	parser.add_argument('--verbose', '-v', action='store_true', default=False, help='Verbose output')
 	parser.add_argument('--quiet', '-q', action='store_true', default=False, help='Suppress output')
 	
@@ -138,6 +152,7 @@ if __name__ == "__main__":
 	POLL = args.poll
 	VERBOSE = args.verbose
 	QUIET = args.quiet
+	TEST_MODE = args.test
 	CPU_THRESHOLD = args.cpu_threshold
 	CPUTIME_THRESHOLD = args.cputime_threshold
 	LOAD_THRESHOLD = args.load_threshold

@@ -17,6 +17,7 @@
 
 import os
 import logging, logging.config
+import math
 import time
 from datetime import timedelta
 
@@ -60,6 +61,8 @@ if CONFIG['LOAD_THRESHOLD'] < 1:
     CONFIG['LOAD_THRESHOLD'] = psutil.cpu_count()
 CONFIG['CPU_THRESHOLD'] = 50.0
 CONFIG['CPUTIME_THRESHOLD'] = ELAPSED.second
+CONFIG['TIME_SCALE'] = 'week'
+CONFIG['TIME_FACTOR'] = 1
 CONFIG['POLL'] = 3
 CONFIG['TEST_MODE'] = False
 CONFIG['VERBOSE'] = False
@@ -108,11 +111,27 @@ def convert_nice(proc, **kwargs):
     model -- (default 'relative')
         'kernel' = Total CPU time accumulated
         'relative' = Total time elapsed since process started
+    nice_min -- (default 0)
+    nice_max -- (default 20)
+    time_scale -- (default 1 month)
     """
     logger = logging.getLogger(__name__)
     model = 'relative'
+    nice_min = 0
+    nice_max = 20
+    time_scale = ELAPSED.month
+    
     if kwargs.has_key('model'):
         model = kwargs['model']
+    
+    if kwargs.has_key('nice_min'):
+        nice_min = kwargs['nice_min']
+        
+    if kwargs.has_key('nice_max'):
+        nice_max = kwargs['nice_max']
+        
+    if kwargs.has_key('time_scale'):
+        time_scale = kwargs['time_scale']
 
     if model == 'kernel':
         time_user, time_system = proc.cpu_times()  
@@ -124,22 +143,14 @@ def convert_nice(proc, **kwargs):
         
     logger.debug('Time model "{0}"'.format(model))
     nice = 0
-    if total_time >= ELAPSED.month:
-        nice = 20
-    elif total_time >= ELAPSED.week:
-        nice = 17
-    elif total_time >= ELAPSED.day:
-        nice = 15
-    elif total_time >= ELAPSED.day / 2:
-        nice = 11
-    elif total_time >= ELAPSED.hour:
-        nice = 9
-    elif total_time >= ELAPSED.hour / 2:
-        nice = 4
-    elif total_time >= ELAPSED.minute:
-        nice = 2
-    elif total_time >= ELAPSED.minute / 2:
-        nice = 1
+    try:
+        nice = nice_min - total_time * (-nice_max / (time_scale + 1))
+        if nice > nice_max:
+            nice = nice_max
+    except ZeroDivisionError:
+        return int(nice_max)
+    finally:
+        return int(math.floor(nice))
     
     return nice 
 
@@ -272,7 +283,7 @@ if __name__ == "__main__":
         '-t',
         default=CONFIG['CPUTIME_THRESHOLD'],
         type=float,
-        help='Trigger after n%%')
+        help='Trigger after n seconds')
 
     PARSER.add_argument('--load-threshold',
         '-l',
@@ -280,6 +291,16 @@ if __name__ == "__main__":
         type=float,
         help='Trigger after n load average')
 
+    PARSER.add_argument('--time-scale',
+        default=CONFIG['TIME_SCALE'],
+        type=str,
+        help='second, day, week, month, or year')
+    
+    PARSER.add_argument('--time-factor',
+        default=CONFIG['TIME_FACTOR'],
+        type=float,
+        help='NICE_SCALE = (TIME_SCALE * TIME_FACTOR)')    
+    
     PARSER.add_argument('--poll',
         '-p',
         default=CONFIG['POLL'],

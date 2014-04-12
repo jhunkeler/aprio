@@ -273,13 +273,11 @@ def main(args):
                 nice = convert_nice(bad,
                     model='kernel',
                     time_scale=CONFIG['TIME_SCALE'])
-                logger.info(('pass1',nice))
 
                 if not nice:
                     nice = convert_nice(bad,
                         model='relative',
                         time_scale=time_scale_convert(CONFIG['TIME_SCALE']))
-                    logger.info(('pass2',nice))
 
                 if nice != 0:
                     renice(bad, nice)

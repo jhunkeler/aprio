@@ -329,7 +329,7 @@ if __name__ == "__main__":
 
     PARSER.add_argument('--time-scale',
         '-s',
-        default=time_scale_convert(CONFIG['TIME_SCALE']),
+        default=CONFIG['TIME_SCALE'],
         type=str,
         help="Time scale for nice value.\nFormat: {n}{smdwMy}\nEx: 1d == 1 day"
         )  

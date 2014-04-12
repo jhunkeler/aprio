@@ -20,6 +20,7 @@ import logging, logging.config
 import math
 import time
 from datetime import timedelta
+from pprint import pprint
 
 
 try:
@@ -61,13 +62,56 @@ if CONFIG['LOAD_THRESHOLD'] < 1:
     CONFIG['LOAD_THRESHOLD'] = psutil.cpu_count()
 CONFIG['CPU_THRESHOLD'] = 50.0
 CONFIG['CPUTIME_THRESHOLD'] = ELAPSED.second
-CONFIG['TIME_SCALE'] = 'week'
-CONFIG['TIME_FACTOR'] = 1
+CONFIG['TIME_SCALE'] = '1w'
 CONFIG['POLL'] = 3
 CONFIG['TEST_MODE'] = False
 CONFIG['VERBOSE'] = False
 CONFIG['QUITE'] = False
 
+def time_scale_convert(scale_fmt):
+    """Converts simple string format to POSIX time
+    
+    scale_fmt -- Accepts a float+character format string
+        Example:
+            '1.5y' == 1 year, six months
+            '30s' == 30 seconds
+    """
+    logger = logging.getLogger(__name__)
+    if not isinstance(scale_fmt, str):
+        raise TypeError("Invalid time scale (expecting 'str'): {0}"
+            .format(type(scale_fmt)))
+    
+    if len(scale_fmt) < 2:
+        raise ValueError("Invalid format: '{0}'"
+            .format(scale_fmt))
+    
+    _modifiers = [[
+        's','m','h',
+        'd','w','M',
+        'y'
+    ],
+    [
+        ELAPSED.second, ELAPSED.minute, ELAPSED.hour,
+        ELAPSED.day, ELAPSED.week, ELAPSED.month, ELAPSED.month*12
+    ]]
+    _digits = [ str(x) for x in range(10) ]
+    _digits.append('.')
+    
+    modifiers = dict(zip(*_modifiers))    
+    scale = scale_fmt[-1]
+    factor = scale_fmt[0:-1]
+    
+    decimals = 0
+    for ch in factor:
+        if ch is '.':
+            decimals += 1
+        if ch not in _digits or decimals > 1:
+            raise ValueError("Invalid time factor: {0}".format(scale_fmt))
+        
+    if scale not in modifiers.keys():
+        raise ValueError("Invalid time scale modifier: {0}".format(scale))
+    
+    return float(factor) * modifiers[scale]
 
 def renice(proc, nice_value=0):
     """Change the process priority of a psutil.Process object
@@ -120,6 +164,7 @@ def convert_nice(proc, **kwargs):
     nice_min = 0
     nice_max = 20
     time_scale = ELAPSED.month
+    total_time = 0
     
     if kwargs.has_key('model'):
         model = kwargs['model']
@@ -132,16 +177,15 @@ def convert_nice(proc, **kwargs):
         
     if kwargs.has_key('time_scale'):
         time_scale = kwargs['time_scale']
-
+    
     if model == 'kernel':
-        time_user, time_system = proc.cpu_times()  
+        time_user, time_system = proc.get_cpu_times()  
         total_time = time_user + time_system
     elif model == 'relative':
         total_time = time.time() - proc.create_time()
     else:
         raise ValueError('"{0}" is not a valid time model'.format(model))
         
-    logger.debug('Time model "{0}"'.format(model))
     nice = 0
     try:
         nice = nice_min - total_time * (-nice_max / (time_scale + 1))
@@ -181,14 +225,12 @@ def filter_processes(cpu_threshold=CONFIG['CPU_THRESHOLD'],
             if uid == 0 or euid == 0:
                 continue
 
+            if pid == os.getpid():
+                continue
 
             cpu = proc.get_cpu_percent(interval=0.05)
             if cpu > cpu_threshold:
-                logger.debug("{0}:cpu_threshold ({1}% > {2}%)"
-                    .format(pid, cpu, cpu_threshold))
                 if cputime_total > cputime_threshold:
-                    logger.debug("{0}:cputime_threshold ({1} > {2})"
-                        .format(pid, cputime_total, cputime_threshold))
                     if user:
                         if user != username:
                             continue
@@ -209,46 +251,42 @@ def main(args):
     CONFIG['CPU_THRESHOLD'] = args.cpu_threshold
     CONFIG['CPUTIME_THRESHOLD'] = args.cputime_threshold
     CONFIG['LOAD_THRESHOLD'] = args.load_threshold
+    CONFIG['TIME_SCALE'] = args.time_scale
     CONFIG['DAEMON'] = args.daemon
     user = args.user
-    
-    
-    load_sleep = False
-    load_warn = False
+
+    LOGGER.debug("Active configuration:")
+    for cfg_key, cfg_value in CONFIG.iteritems():
+        LOGGER.debug("{0}: {1}".format(cfg_key, cfg_value))
 
     while(True):
         load = os.getloadavg()
         load = sum(load) / len(load)
         if load < CONFIG['LOAD_THRESHOLD']:
-            load_sleep = True
-            load_warn = False
-            if load_sleep:
-                logger.debug("load_threshold nominal ({0} < {1})"
-                    .format(load, CONFIG['LOAD_THRESHOLD']))
-            load_sleep = False
             time.sleep(CONFIG['POLL'])
             continue
-        else:
-            load_warn = True
-
-        if load_warn:
-            logger.debug("load_threshold exceeded ({0} > {1})"
-                .format(load, CONFIG['LOAD_THRESHOLD']))
 
         for bad in filter_processes(CONFIG['CPU_THRESHOLD'],
                                     CONFIG['CPUTIME_THRESHOLD'],
                                     user=user):
             try:
-                nice = convert_nice(bad, model='kernel')
+                nice = convert_nice(bad,
+                    model='kernel',
+                    time_scale=CONFIG['TIME_SCALE'])
+                logger.info(('pass1',nice))
 
                 if not nice:
-                    nice = convert_nice(bad)
+                    nice = convert_nice(bad,
+                        model='relative',
+                        time_scale=time_scale_convert(CONFIG['TIME_SCALE']))
+                    logger.info(('pass2',nice))
 
                 if nice != 0:
                     renice(bad, nice)
 
             except psutil.NoSuchProcess:
                 continue
+            
         time.sleep(CONFIG['POLL'])
 
 
@@ -292,14 +330,11 @@ if __name__ == "__main__":
         help='Trigger after n load average')
 
     PARSER.add_argument('--time-scale',
-        default=CONFIG['TIME_SCALE'],
+        '-s',
+        default=time_scale_convert(CONFIG['TIME_SCALE']),
         type=str,
-        help='second, day, week, month, or year')
-    
-    PARSER.add_argument('--time-factor',
-        default=CONFIG['TIME_FACTOR'],
-        type=float,
-        help='NICE_SCALE = (TIME_SCALE * TIME_FACTOR)')    
+        help="Time scale for nice value.\nFormat: {n}{smdwMy}\nEx: 1d == 1 day"
+        )  
     
     PARSER.add_argument('--poll',
         '-p',

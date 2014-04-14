@@ -1,6 +1,6 @@
 # Automatic Priority Daemon
 
-aprio was developed to enable systems administrators to automatically renice abusive, long running, CPU intensive
+Aprio was developed to enable systems administrators to automatically renice abusive, long running, CPU intensive
 processes. In a shared high-computing environment, users may feel it is necessary to "compete" with each other's
 programs, which often times leads to kernel load averages far exceeding an individual server's capabilities.
 
@@ -14,28 +14,48 @@ usage: aprio.py [-h] [--daemon] [--logfile LOGFILE] [--user USER]
 
 optional arguments:
   -h, --help            show this help message and exit
-  --daemon, -d          Fork into background
+  --daemon, -d          Fork into background (default: False)
   --logfile LOGFILE, -L LOGFILE
-                        Log output to filename
-  --user USER, -u USER  Limit to specific user
+                        Log output to filename (default: None)
+  --user USER, -u USER  Limit to specific user (default: None)
   --cpu-threshold CPU_THRESHOLD, -c CPU_THRESHOLD
-                        Trigger after n%
+                        Trigger after n% (default: 50.0)
   --cputime-threshold CPUTIME_THRESHOLD, -t CPUTIME_THRESHOLD
-                        Trigger after {n}{smdwMy} Ex: 1d == 1 day
+                        Trigger after {n}{smdwMy} (default: 30m)
   --load-threshold LOAD_THRESHOLD, -l LOAD_THRESHOLD
-                        Trigger after n load average
+                        Trigger after n load average (default: 4)
   --time-scale TIME_SCALE, -s TIME_SCALE
-                        Time scale for nice value. Format: {n}{smdwMy} Ex: 1d
-                        == 1 day
-  --poll POLL, -p POLL  Wait n seconds between polling processes
-  --test, -T            Do not modify processes; report only.
-  --verbose, -v         Verbose output
-  --quiet, -q           Suppress output
+                        Scale by which nice values are calculated {n}{smdwMy}
+                        (default: 1w)
+  --poll POLL, -p POLL  Wait n seconds between polling processes (default: 3)
+  --test, -T            Do not modify processes; report only. (default: False)
+  --verbose, -v         Verbose output (default: False)
+  --quiet, -q           Suppress output (default: False)
+
 ```
 
-## Example
+## Examples
+
+### As a daemon process
 
 ```bash
-# aprio --daemon --cpu-theshold=85.0 --cputime-theshold=2h --load-threshold=10.0 --time-scale=2w
+aprio --daemon --cpu-threshold=85.0 --cputime-threshold=2h --load-threshold=10.0 --time-scale=2w
+```
+
+### As a foreground process
+
+The default loglevel is INFO. Aprio will only report changes to process priority.
+
+```bash
+aprio --cpu-threshold=85.0 --cputime-threshold=2h --load-threshold=10.0 --time-scale=2w
+INFO:2014-04-14 09:31:18,872:renice:13481:Priority modified (0 -> 20)
+```
+
+### Controlling a single user
+
+The `--user` or `-u` argument allows you to target a user's processes.
+
+```bash
+aprio --user=foo --cpu-threshold=85.0 --cputime-threshold=2h --load-threshold=10.0 --time-scale=2w
 ```
 

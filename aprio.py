@@ -1,5 +1,6 @@
 #!/usr/bin/env python
-#
+# Copyright (C) 2014 Joseph Hunkeler <jhunkeler@gmail.com>
+
 # aprio is free software: you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
 # the Free Software Foundation, either version 3 of the License, or
@@ -20,7 +21,6 @@ import logging, logging.config
 import math
 import time
 from datetime import timedelta
-from pprint import pprint
 
 
 try:

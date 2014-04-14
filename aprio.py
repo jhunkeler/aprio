@@ -61,12 +61,12 @@ CONFIG['LOAD_THRESHOLD'] = psutil.cpu_count() / 2
 if CONFIG['LOAD_THRESHOLD'] < 1:
     CONFIG['LOAD_THRESHOLD'] = psutil.cpu_count()
 CONFIG['CPU_THRESHOLD'] = 50.0
-CONFIG['CPUTIME_THRESHOLD'] = ELAPSED.second
+CONFIG['CPUTIME_THRESHOLD'] = '30m'
 CONFIG['TIME_SCALE'] = '1w'
 CONFIG['POLL'] = 3
 CONFIG['TEST_MODE'] = False
 CONFIG['VERBOSE'] = False
-CONFIG['QUITE'] = False
+CONFIG['QUIET'] = False
 
 def time_scale_convert(scale_fmt):
     """Converts simple string format to POSIX time
@@ -102,10 +102,10 @@ def time_scale_convert(scale_fmt):
     factor = scale_fmt[0:-1]
     
     decimals = 0
-    for ch in factor:
-        if ch is '.':
+    for char in factor:
+        if char is '.':
             decimals += 1
-        if ch not in _digits or decimals > 1:
+        if char not in _digits or decimals > 1:
             raise ValueError("Invalid time factor: {0}".format(scale_fmt))
         
     if scale not in modifiers.keys():
@@ -267,7 +267,8 @@ def main(args):
             continue
 
         for bad in filter_processes(CONFIG['CPU_THRESHOLD'],
-                                    CONFIG['CPUTIME_THRESHOLD'],
+                                    time_scale_convert(
+                                        CONFIG['CPUTIME_THRESHOLD']),
                                     user=user):
             try:
                 nice = convert_nice(bad,
@@ -318,8 +319,8 @@ if __name__ == "__main__":
     PARSER.add_argument('--cputime-threshold',
         '-t',
         default=CONFIG['CPUTIME_THRESHOLD'],
-        type=float,
-        help='Trigger after n seconds')
+        type=str,
+        help='Trigger after {n}{smdwMy} Ex: 1d == 1 day')
 
     PARSER.add_argument('--load-threshold',
         '-l',

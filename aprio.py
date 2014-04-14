@@ -57,9 +57,9 @@ class Transpire(object):
 
 ELAPSED = Transpire()
 CONFIG = {}
-CONFIG['LOAD_THRESHOLD'] = psutil.cpu_count() / 2
+CONFIG['LOAD_THRESHOLD'] = float(psutil.cpu_count() / 2)
 if CONFIG['LOAD_THRESHOLD'] < 1:
-    CONFIG['LOAD_THRESHOLD'] = psutil.cpu_count()
+    CONFIG['LOAD_THRESHOLD'] = float(psutil.cpu_count())
 CONFIG['CPU_THRESHOLD'] = 50.0
 CONFIG['CPUTIME_THRESHOLD'] = '30m'
 CONFIG['TIME_SCALE'] = '1w'
@@ -291,7 +291,9 @@ def main(args):
 
 if __name__ == "__main__":
 
-    PARSER = argparse.ArgumentParser()
+    PARSER = argparse.ArgumentParser(
+        formatter_class=argparse.ArgumentDefaultsHelpFormatter)
+    
     PARSER.add_argument('--daemon',
         '-d',
         action='store_true',
@@ -300,13 +302,13 @@ if __name__ == "__main__":
     PARSER.add_argument('--logfile',
         '-L',
         action='store',
-        default="",
+        default=None,
         type=str,
         help="Log output to filename")
 
     PARSER.add_argument('--user',
         '-u',
-        default="",
+        default=None,
         type=str,
         help='Limit to specific user')    
 
@@ -320,7 +322,7 @@ if __name__ == "__main__":
         '-t',
         default=CONFIG['CPUTIME_THRESHOLD'],
         type=str,
-        help='Trigger after {n}{smdwMy} Ex: 1d == 1 day')
+        help='Trigger after {n}{smdwMy}')
 
     PARSER.add_argument('--load-threshold',
         '-l',
@@ -332,7 +334,7 @@ if __name__ == "__main__":
         '-s',
         default=CONFIG['TIME_SCALE'],
         type=str,
-        help="Time scale for nice value.\nFormat: {n}{smdwMy}\nEx: 1d == 1 day"
+        help='Scale by which nice values are calculated {n}{smdwMy}'
         )  
     
     PARSER.add_argument('--poll',
@@ -375,6 +377,9 @@ if __name__ == "__main__":
      
     if ARGUMENTS.verbose:
         LOGGER.setLevel(logging.DEBUG)
+        
+    if ARGUMENTS.quiet:
+        LOGGER.setLevel(logging.NOTSET)
 
     if ARGUMENTS.test:
         LOGGER.debug('Test mode (processes will not be modified)')

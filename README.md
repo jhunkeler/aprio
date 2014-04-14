@@ -5,7 +5,7 @@ processes. In a shared high-computing environment, users may feel it is necessar
 programs, which often times leads to kernel load averages far exceeding an individual server's capabilities.
 
 # Usage Output
-
+```
 usage: aprio.py [-h] [--daemon] [--logfile LOGFILE] [--user USER]
                 [--cpu-threshold CPU_THRESHOLD]
                 [--cputime-threshold CPUTIME_THRESHOLD]
@@ -31,7 +31,7 @@ optional arguments:
   --test, -T            Do not modify processes; report only.
   --verbose, -v         Verbose output
   --quiet, -q           Suppress output
-
+```
 
 ## Example
 
